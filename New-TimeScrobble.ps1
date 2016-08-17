@@ -25,6 +25,72 @@ Function Get-OutlookCalendar {
  $folder.items | 
  Select-Object -Property Subject, Start, Duration, Location 
 }
+Function New-HTMLTable {
+    param(
+        $inputObj,
+        $headerText
+    )
+
+    $outputArr = @()
+    $outputArr += ("<br><span style=`'font-weight: bold;`'>",$headerText,'</span>' -join '')
+    $outputArr += $inputObj | ConvertTo-HTML -Fragment | Set-AlternatingRows -CSSOddClass odd -CSSEvenClass even
+    return $outputArr
+}
+
+Function Set-AlternatingRows {
+  [CmdletBinding()]
+   	Param(
+       	[Parameter(Mandatory,ValueFromPipeline)]
+        [string]$Line,
+       
+   	    [Parameter(Mandatory)]
+       	[string]$CSSEvenClass,
+       
+        [Parameter(Mandatory)]
+   	    [string]$CSSOddClass
+   	)
+	Begin {
+		$ClassName = $CSSEvenClass
+	}
+	Process {
+		If ($Line.Contains("<tr><td>"))
+		{	$Line = $Line.Replace("<tr>","<tr class=""$ClassName"">")
+			If ($ClassName -eq $CSSEvenClass)
+			{	$ClassName = $CSSOddClass
+			}
+			Else
+			{	$ClassName = $CSSEvenClass
+			}
+		}
+		Return $Line
+	}
+}
+
+$reportHeader = @"
+<style>
+  body {
+    font-family: "Arial";
+    font-size: 10pt;
+    color: #4C607B;
+    }
+  th, td { 
+    border: 1px solid #e57300;
+    border-collapse: collapse;
+    padding: 5px;
+    }
+  th {
+    font-size: 1.2em;
+    text-align: left;
+    background-color: #003366;
+    color: #ffffff;
+    }
+  td {
+    color: #000000;
+    }
+  .even { background-color: #ffffff; }
+  .odd { background-color: #bfbfbf; }
+</style>
+"@
 
 $startDay = '2016-08-12'
 $endDay = '2016-08-16'
@@ -66,8 +132,10 @@ ForEach ($day in $dateArr) {
     $outPath = "$outputFld\$dateStr-TimeScrobble.htm"
     $tomorrow = $day.AddDays(1)
 
-    $folderObj = $folderFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)}
-    $downloadObj = $downloadFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)}
+    $fileSortProp1 = @{Expression='DirectoryName';Descending = $true}
+    $fileSortProp2 = @{Expression='LastWriteTime';Ascending = $true}
+    $folderObj = $folderFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, DirectoryName, CreationTime, LastWriteTime | Sort-Object $fileSortProp1,$fileSortProp2
+    $downloadObj = $downloadFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, CreationTime, LastWriteTime | Sort-Object lastWriteTime
     $inboxObj = $inboxArr | Where-Object {$_.ReceivedTime -ge $day -and $_.ReceivedTime -lt $tomorrow}
     $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow}
     $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow}
@@ -86,30 +154,58 @@ ForEach ($day in $dateArr) {
             $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'channel' -Value $group}
             $slackObj += $groupMsgs
         }
-    }
-    $slackFiles = @()
-    ForEach ($message in $slackObj) {
-        $message.Username = ($slackUsers | Where-Object {$_.ID -eq $message.User} | Select-Object -ExpandProperty Name)
-        If ($message.File) {
-            $slackFiles += $message
-        }
-    }
-    If ($slackFiles.count -ne 0) {
-        $slackFileObj = @()
-        ForEach ($file in $slackFiles) {
-            $SlackFileObj += [PSCustomObject] @{
-                Channel = $file.Channel
-                Timestamp = $file.Timestamp
-                Username = $file.Username
-                Title = $file.File.title
-                Filename = $file.File.name
-                Permalink = $file.File.permalink_public
+
+        $slackFiles = @()
+        ForEach ($message in $slackObj) {
+            $message.Username = ($slackUsers | Where-Object {$_.ID -eq $message.User} | Select-Object -ExpandProperty Name)
+            If ($message.File) {
+                $slackFiles += $message
             }
         }
-        $slackObj = $slackObj | Where-Object {$slackFiles -notcontains $_}
+        If ($slackFiles.count -ne 0) {
+            $slackFileObj = @()
+            ForEach ($file in $slackFiles) {
+                $SlackFileObj += [PSCustomObject] @{
+                    Channel = $file.Channel
+                    Timestamp = $file.Timestamp
+                    Username = $file.Username
+                    Title = $file.File.title
+                    Filename = $file.File.name
+                    Permalink = $file.File.permalink
+                }
+            }
+            $slackObj = $slackObj | Where-Object {$slackFiles -notcontains $_}
+        }
+
+        $slackSortProp1 = @{Expression='Channel'; Descending=$true}
+        $slackSortProp2 = @{Expression='Timestamp'; Ascending=$true}
+        $slackObj = $slackObj | Select-Object Channel,Timestamp,Username,Text | Sort-Object $slackSortProp1, $slackSortProp2
     }
 
-    $sortProp1 = @{Expression='Channel'; Descending=$true}
-    $sortProp2 = @{Expression='Timestamp'; Ascending=$true}
-    $slackObj = $slackObj | Select-Object Channel,Timestamp,Username,Text | Sort-Object $sortProp1, $sortProp2
+    $outBody = @()
+    If ($folderObj) {
+        $outBody += New-HTMLTable -inputObj $folderObj -headerText 'Personal Files Created/Modified'
+    }
+    If ($downloadObj) {
+        $outBody += New-HTMLTable -inputObj $downloadObj -headerText 'Downloaded Files'
+    }
+    If ($inboxObj) {
+        $outBody += New-HTMLTable -inputObj $inboxObj -headerText 'Received Emails'
+    }
+    If ($sentObj) {
+        $outBody += New-HTMLTable -inputObj $sentObj -headerText 'Sent Emails'
+    }
+    If ($calObj) {
+        $outBody += New-HTMLTable -inputObj $calObj -headerText 'Calendar Entries'
+    }
+    If ($slackObj) {
+        $outBody += New-HTMLTable -inputObj $slackObj -headerText 'Slack Messages'
+    }
+    If ($slackFileObj) {
+        $outBody += New-HTMLTable -inputObj $slackFileObj -headerText 'Slack Files'
+    }
+
+    [array]$outBody = "<h1>TimeScrobbler Run for $dateStr</h1>" + $outBody + "<br><h3>Report generated at $(Get-Date)</h3>"
+    $outHTM = ConvertTo-Html -Head $reportHeader -Body $outBody
+    $outHTM | Out-File $outPath -Force
 }
