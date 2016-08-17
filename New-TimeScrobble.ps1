@@ -105,34 +105,27 @@ $reportHeader = @"
 "@
 
 
-########## VARIABLE BLOCK START ##########
-
-# Date must be in YYYY-MM-DD universal format!
-$startDay = '2016-08-12'
-$endDay = '2016-08-16'
-
-# Set output folder for report
-$outputFld = 'D:\Scripting\TimeScrobbler'
-
-# Set your Slack OAuth key to allow TimeScrobbler to trawl Slack. Get yours from here: https://api.slack.com/docs/oauth-test-tokens
-$personalSlackKey = ''
-
-# Set the folders you want TimeScrobbler to check for created/modified files
-$folderArr = 'D:\Scripting','D:\Scratch','D:\Projects'
-
-# Set the Slack channels to check
-[array]$slackChannels = 'collaboration','security','general','helpdesk'
-
-# Set the Slack groups (private group chats) to check
-[array]$slackGroups = 'teamgbm','linkdump'
-
-########### VARIABLE BLOCK END ###########
-
-
 Write-Output 'TimeScrobbler v1.0 - kittiah@gmail.com'
 # Work out path, import Slack module (TEMP: Until the Groups functionality is added to master branch)
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
-Import-Module $scriptPath\PSSlack -Force | Out-Null
+
+# Read in the User.conf and turn into live variables
+$importConfig = Get-Content $scriptPath\User.conf | Where-Object {($_ -notlike '#*') -and ($_)}
+$importConfig | ForEach {
+    $splitVar = $_.Split('=')
+    If ($splitVar[1] -like '*,*') {
+        [array]$value = $splitVar[1].Trim().Split(',')
+    }
+    Else {
+        $value = $splitvar[1].Trim()
+    }
+    Set-Variable -Scope Script -Name $splitVar[0].Trim() -Value $value
+}
+
+# Import PSSlack if a token has been provided
+If ($personalSlackKey -ne '') {
+    Import-Module $scriptPath\PSSlack -Force | Out-Null
+}
 
 # Create the output folder if it doesn't already exist
 Set-Folder $outputFld
@@ -156,7 +149,7 @@ $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft
 # Please note, these bits take fucking ages. Go make a sandwich or three.
 Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
 $inboxArr = Get-OutlookInbox
-Write-Output 'Getting Outlook Sent Items - This may take some time...'
+Write-Output 'Getting Outlook Sent Items - This could be a while...'
 $sentArr = Get-OutlookSent
 Write-Output 'Getting Outlook Calendar - Hopefully wont take too long...'
 $calArr = Get-OutlookCalendar
