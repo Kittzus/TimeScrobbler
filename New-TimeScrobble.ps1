@@ -117,7 +117,7 @@ $importConfig | ForEach {
         [array]$value = $splitVar[1].Trim().Split(',')
     }
     Else {
-        $value = $splitvar[1].Trim()
+        [string]$value = $splitvar[1].Trim()
     }
     Set-Variable -Scope Script -Name $splitVar[0].Trim() -Value $value
 }
