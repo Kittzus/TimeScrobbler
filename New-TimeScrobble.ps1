@@ -1,26 +1,26 @@
 ﻿Function Get-OutlookInBox {
- Add-type -assembly “Microsoft.Office.Interop.Outlook” | out-null
- $olFolders = “Microsoft.Office.Interop.Outlook.olDefaultFolders” -as [type]
+ Add-type -assembly 'Microsoft.Office.Interop.Outlook' | out-null
+ $olFolders = 'Microsoft.Office.Interop.Outlook.olDefaultFolders' -as [type]
  $outlook = new-object -comobject outlook.application
- $namespace = $outlook.GetNameSpace(“MAPI”)
+ $namespace = $outlook.GetNameSpace('MAPI')
  $folder = $namespace.getDefaultFolder($olFolders::olFolderInBox)
  $folder.items |
  Select-Object -Property Subject, ReceivedTime, Importance, SenderName
 }
 Function Get-OutlookSent {
- Add-type -assembly “Microsoft.Office.Interop.Outlook” | out-null
- $olFolders = “Microsoft.Office.Interop.Outlook.olDefaultFolders” -as [type]
+ Add-type -assembly 'Microsoft.Office.Interop.Outlook' | out-null
+ $olFolders = 'Microsoft.Office.Interop.Outlook.olDefaultFolders' -as [type]
  $outlook = new-object -comobject outlook.application
- $namespace = $outlook.GetNameSpace(“MAPI”)
+ $namespace = $outlook.GetNameSpace('MAPI')
  $folder = $namespace.getDefaultFolder($olFolders::olFolderSentMail)
  $folder.items |
  Select-Object -Property Subject, SentOn, Importance, To
 }
 Function Get-OutlookCalendar { 
- Add-type -assembly "Microsoft.Office.Interop.Outlook" | out-null 
- $olFolders = "Microsoft.Office.Interop.Outlook.OlDefaultFolders" -as [type]  
+ Add-type -assembly 'Microsoft.Office.Interop.Outlook' | out-null 
+ $olFolders = 'Microsoft.Office.Interop.Outlook.OlDefaultFolders' -as [type]  
  $outlook = new-object -comobject outlook.application 
- $namespace = $outlook.GetNameSpace("MAPI") 
+ $namespace = $outlook.GetNameSpace('MAPI') 
  $folder = $namespace.getDefaultFolder($olFolders::olFolderCalendar) 
  $folder.items | 
  Select-Object -Property Subject, Start, Duration, Location 
@@ -53,8 +53,8 @@ Function Set-AlternatingRows {
 		$ClassName = $CSSEvenClass
 	}
 	Process {
-		If ($Line.Contains("<tr><td>"))
-		{	$Line = $Line.Replace("<tr>","<tr class=""$ClassName"">")
+		If ($Line.Contains('<tr><td>'))
+		{	$Line = $Line.Replace('<tr>',"<tr class=""$ClassName"">")
 			If ($ClassName -eq $CSSEvenClass)
 			{	$ClassName = $CSSOddClass
 			}
@@ -124,21 +124,27 @@ $dateArr = @()
   $startdate = $startdate.AddDays(1)
 }
 
-$folderArr += [Environment]::GetFolderPath("Desktop")
-$folderArr += [Environment]::GetFolderPath("Desktop")
+$folderArr += [Environment]::GetFolderPath('Desktop')
+$folderArr += [Environment]::GetFolderPath('Desktop')
 $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
 
 # Build out the data sources for the reports
 # Please note, these bits take fucking ages. Go make a sandwich or three.
+Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
 $inboxArr = Get-OutlookInbox
+Write-Output 'Getting Outlook Sent Items - This may take some time...'
 $sentArr = Get-OutlookSent
+Write-Output 'Getting Outlook Calendar'
 $calArr = Get-OutlookCalendar
 
+Write-Output 'Getting Local Files'
 $folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
 $downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
 
+Write-Output 'Building Reports...'
 ForEach ($day in $dateArr) {
     $dateStr = $day.ToShortDateString().Replace('/','-')
+    Write-Output "TimeScrobbling $dateStr..."
     $outPath = "$outputFld\$dateStr-TimeScrobble.htm"
     $tomorrow = $day.AddDays(1)
 
@@ -146,9 +152,9 @@ ForEach ($day in $dateArr) {
     $fileSortProp2 = @{Expression='LastWriteTime';Ascending = $true}
     $folderObj = $folderFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, DirectoryName, CreationTime, LastWriteTime | Sort-Object $fileSortProp1,$fileSortProp2
     $downloadObj = $downloadFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, CreationTime, LastWriteTime | Sort-Object lastWriteTime
-    $inboxObj = $inboxArr | Where-Object {$_.ReceivedTime -ge $day -and $_.ReceivedTime -lt $tomorrow}
-    $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow}
-    $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow}
+    $inboxObj = $inboxArr | Where-Object {$_.ReceivedTime -ge $day -and $_.ReceivedTime -lt $tomorrow} | Select-Object ReceivedTime, SenderName, Subject, Importance
+    $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow} | Select-Object SentOn, To, Subject, Importance
+    $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow} | Select-Object Start, Subject, Duration, Location
     
     If ($personalSlackKey) {
     # Please note, requires customised version of PSSlack with Group support to function properly @ 17/08
@@ -161,7 +167,7 @@ ForEach ($day in $dateArr) {
         }
         ForEach ($group in $slackGroups) {
             $groupMsgs = Get-SlackGroup -Token $personalSlackKey -Name $group | Get-SlackGroupHistory -Token $personalSlackKey -After $day -Before $tomorrow
-            $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'channel' -Value $group}
+            $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $group}
             $slackObj += $groupMsgs
         }
 
@@ -219,3 +225,5 @@ ForEach ($day in $dateArr) {
     $outHTM = ConvertTo-Html -Head $reportHeader -Body $outBody
     $outHTM | Out-File $outPath -Force
 }
+
+Write-Output "`r`nTimeScrobble complete. Reports available at $outputFld`r`nPress any key to exit."
