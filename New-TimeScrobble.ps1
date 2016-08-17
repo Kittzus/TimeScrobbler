@@ -164,7 +164,7 @@ $downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
 
 Write-Output 'Building Reports...'
 ForEach ($day in $dateArr) {
-    $dateStr = $day.ToShortDateString().Replace('/','-')
+    $dateStr = $day.ToString('yyyy-MM-dd')
     Write-Output "TimeScrobbling $dateStr..."
     $outPath = "$outputFld\$dateStr-TimeScrobble.htm"
     $tomorrow = $day.AddDays(1)
