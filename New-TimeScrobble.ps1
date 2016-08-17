@@ -134,6 +134,9 @@ Write-Output 'TimeScrobbler v1.0 - kittiah@gmail.com'
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
 Import-Module $scriptPath\PSSlack -Force | Out-Null
 
+# Create the output folder if it doesn't already exist
+Set-Folder $outputFld
+
 # Work out the days we need to generate reports for
 $startDate = Get-Date -Date $startDay
 $endDate = Get-Date -Date $endDay
