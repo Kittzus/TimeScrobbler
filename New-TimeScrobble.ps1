@@ -91,27 +91,32 @@ $reportHeader = @"
   .odd { background-color: #bfbfbf; }
 </style>
 "@
-########## VARIABLE SET START ##########
+
+
+########## VARIABLE BLOCK START ##########
+
 # Date must be in YYYY-MM-DD universal format!
 $startDay = '2016-08-12'
 $endDay = '2016-08-16'
 $outputFld = 'D:\Scripting\TimeScrobbler'
 
 # Set your Slack OAuth key to allow TimeScrobbler to trawl Slack. Get yours from here: https://api.slack.com/docs/oauth-test-tokens
-$personalSlackKey = 'xoxp-3081557503-3081557505-10560465472-8cd463165e'
+$personalSlackKey = ''
 
 # Set the folders you want TimeScrobbler to check for created/modified files
 $folderArr = 'D:\Scripting','D:\Scratch','D:\Projects'
 # Set the Slack channels to check
 [array]$slackChannels = 'collaboration','security','general','helpdesk'
-# Set the Slack groups to check
+# Set the Slack groups (private group chats) to check
 [array]$slackGroups = 'teamgbm','linkdump'
 
-########### VARIABLE SET END ###########
+########### VARIABLE BLOCK END ###########
 
+
+Write-Output 'TimeScrobbler v1.0 - kittiah@gmail.com'
 # Work out path, import Slack module (TEMP: Until the Groups functionality is added to master branch)
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
-Import-Module $scriptPath\PSSlack -Force
+Import-Module $scriptPath\PSSlack -Force | Out-Null
 
 # Work out the days we need to generate reports for
 $startDate = Get-Date -Date $startDay
@@ -227,3 +232,4 @@ ForEach ($day in $dateArr) {
 }
 
 Write-Output "`r`nTimeScrobble complete. Reports available at $outputFld`r`nPress any key to exit."
+$x = $host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
