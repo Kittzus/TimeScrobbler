@@ -105,7 +105,7 @@ $reportHeader = @"
 "@
 
 
-Write-Output 'TimeScrobbler v1.0 - kittiah@gmail.com'
+Write-Output "TimeScrobbler v1.0 - kittiah@gmail.com`r`n"
 # Work out path, import Slack module (TEMP: Until the Groups functionality is added to master branch)
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
 
