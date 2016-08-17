@@ -91,10 +91,27 @@ $reportHeader = @"
   .odd { background-color: #bfbfbf; }
 </style>
 "@
-
+########## VARIABLE SET START ##########
+# Date must be in YYYY-MM-DD universal format!
 $startDay = '2016-08-12'
 $endDay = '2016-08-16'
 $outputFld = 'D:\Scripting\TimeScrobbler'
+
+# Set your Slack OAuth key to allow TimeScrobbler to trawl Slack. Get yours from here: https://api.slack.com/docs/oauth-test-tokens
+$personalSlackKey = 'xoxp-3081557503-3081557505-10560465472-8cd463165e'
+
+# Set the folders you want TimeScrobbler to check for created/modified files
+$folderArr = 'D:\Scripting','D:\Scratch','D:\Projects'
+# Set the Slack channels to check
+[array]$slackChannels = 'collaboration','security','general','helpdesk'
+# Set the Slack groups to check
+[array]$slackGroups = 'teamgbm','linkdump'
+
+########### VARIABLE SET END ###########
+
+# Work out path, import Slack module (TEMP: Until the Groups functionality is added to master branch)
+$scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
+Import-Module $scriptPath\PSSlack -Force
 
 # Work out the days we need to generate reports for
 $startDate = Get-Date -Date $startDay
@@ -107,22 +124,15 @@ $dateArr = @()
   $startdate = $startdate.AddDays(1)
 }
 
-$folderArr = 'D:\Scripting','D:\Scratch','D:\Projects'
-[array]$slackChannels = 'collaboration','security','general','helpdesk'
-[array]$slackGroups = 'teamgbm','linkdump'
-# Get yours from here: https://api.slack.com/docs/oauth-test-tokens
-# Also need PSSlack installed: http://ramblingcookiemonster.github.io/PSSlack/
-$personalSlackKey = 'xoxp-3081557503-3081557505-10560465472-8cd463165e'
-
 $folderArr += [Environment]::GetFolderPath("Desktop")
 $folderArr += [Environment]::GetFolderPath("Desktop")
 $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
 
 # Build out the data sources for the reports
 # Please note, these bits take fucking ages. Go make a sandwich or three.
-#$inboxArr = Get-OutlookInbox
-#$sentArr = Get-OutlookSent
-#$calArr = Get-OutlookCalendar
+$inboxArr = Get-OutlookInbox
+$sentArr = Get-OutlookSent
+$calArr = Get-OutlookCalendar
 
 $folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
 $downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
