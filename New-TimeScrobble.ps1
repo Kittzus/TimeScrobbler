@@ -7,6 +7,7 @@
  $folder.items |
  Select-Object -Property Subject, ReceivedTime, Importance, SenderName
 }
+
 Function Get-OutlookSent {
  Add-type -assembly 'Microsoft.Office.Interop.Outlook' | out-null
  $olFolders = 'Microsoft.Office.Interop.Outlook.olDefaultFolders' -as [type]
@@ -16,6 +17,7 @@ Function Get-OutlookSent {
  $folder.items |
  Select-Object -Property Subject, SentOn, Importance, To
 }
+
 Function Get-OutlookCalendar { 
  Add-type -assembly 'Microsoft.Office.Interop.Outlook' | out-null 
  $olFolders = 'Microsoft.Office.Interop.Outlook.OlDefaultFolders' -as [type]  
@@ -25,6 +27,7 @@ Function Get-OutlookCalendar {
  $folder.items | 
  Select-Object -Property Subject, Start, Duration, Location 
 }
+
 Function New-HTMLTable {
     param(
         $inputObj,
@@ -66,6 +69,15 @@ Function Set-AlternatingRows {
 	}
 }
 
+Function Set-Folder {
+# Function to check if a folder exists, and create it if not.
+	param($path)
+			
+	If (!(Test-Path "filesystem::$path" -ErrorAction SilentlyContinue)) {
+		New-Item $path -Type Directory -Force | Out-Null
+	}
+}
+
 $reportHeader = @"
 <style>
   body {
@@ -98,6 +110,8 @@ $reportHeader = @"
 # Date must be in YYYY-MM-DD universal format!
 $startDay = '2016-08-12'
 $endDay = '2016-08-16'
+
+# Set output folder for report
 $outputFld = 'D:\Scripting\TimeScrobbler'
 
 # Set your Slack OAuth key to allow TimeScrobbler to trawl Slack. Get yours from here: https://api.slack.com/docs/oauth-test-tokens
@@ -105,8 +119,10 @@ $personalSlackKey = ''
 
 # Set the folders you want TimeScrobbler to check for created/modified files
 $folderArr = 'D:\Scripting','D:\Scratch','D:\Projects'
+
 # Set the Slack channels to check
 [array]$slackChannels = 'collaboration','security','general','helpdesk'
+
 # Set the Slack groups (private group chats) to check
 [array]$slackGroups = 'teamgbm','linkdump'
 
@@ -139,7 +155,7 @@ Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. 
 $inboxArr = Get-OutlookInbox
 Write-Output 'Getting Outlook Sent Items - This may take some time...'
 $sentArr = Get-OutlookSent
-Write-Output 'Getting Outlook Calendar'
+Write-Output 'Getting Outlook Calendar - Hopefully wont take too long...'
 $calArr = Get-OutlookCalendar
 
 Write-Output 'Getting Local Files'
