@@ -1,0 +1,115 @@
+﻿Function Get-OutlookInBox {
+ Add-type -assembly “Microsoft.Office.Interop.Outlook” | out-null
+ $olFolders = “Microsoft.Office.Interop.Outlook.olDefaultFolders” -as [type]
+ $outlook = new-object -comobject outlook.application
+ $namespace = $outlook.GetNameSpace(“MAPI”)
+ $folder = $namespace.getDefaultFolder($olFolders::olFolderInBox)
+ $folder.items |
+ Select-Object -Property Subject, ReceivedTime, Importance, SenderName
+}
+Function Get-OutlookSent {
+ Add-type -assembly “Microsoft.Office.Interop.Outlook” | out-null
+ $olFolders = “Microsoft.Office.Interop.Outlook.olDefaultFolders” -as [type]
+ $outlook = new-object -comobject outlook.application
+ $namespace = $outlook.GetNameSpace(“MAPI”)
+ $folder = $namespace.getDefaultFolder($olFolders::olFolderSentMail)
+ $folder.items |
+ Select-Object -Property Subject, SentOn, Importance, To
+}
+Function Get-OutlookCalendar { 
+ Add-type -assembly "Microsoft.Office.Interop.Outlook" | out-null 
+ $olFolders = "Microsoft.Office.Interop.Outlook.OlDefaultFolders" -as [type]  
+ $outlook = new-object -comobject outlook.application 
+ $namespace = $outlook.GetNameSpace("MAPI") 
+ $folder = $namespace.getDefaultFolder($olFolders::olFolderCalendar) 
+ $folder.items | 
+ Select-Object -Property Subject, Start, Duration, Location 
+}
+
+$startDay = '2016-08-12'
+$endDay = '2016-08-16'
+$outputFld = 'D:\Scripting\TimeScrobbler'
+
+# Work out the days we need to generate reports for
+$startDate = Get-Date -Date $startDay
+$endDate = Get-Date -Date $endDay
+$difference = New-TimeSpan -Start $startdate -End $enddate
+$days = [Math]::Ceiling($difference.TotalDays)+1
+$dateArr = @()
+1..$days | ForEach-Object {
+  $dateArr += $startdate
+  $startdate = $startdate.AddDays(1)
+}
+
+$folderArr = 'D:\Scripting','D:\Scratch','D:\Projects'
+[array]$slackChannels = 'collaboration','security','general','helpdesk'
+[array]$slackGroups = 'teamgbm','linkdump'
+# Get yours from here: https://api.slack.com/docs/oauth-test-tokens
+# Also need PSSlack installed: http://ramblingcookiemonster.github.io/PSSlack/
+$personalSlackKey = 'xoxp-3081557503-3081557505-10560465472-8cd463165e'
+
+$folderArr += [Environment]::GetFolderPath("Desktop")
+$folderArr += [Environment]::GetFolderPath("Desktop")
+$downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
+
+# Build out the data sources for the reports
+# Please note, these bits take fucking ages. Go make a sandwich or three.
+#$inboxArr = Get-OutlookInbox
+#$sentArr = Get-OutlookSent
+#$calArr = Get-OutlookCalendar
+
+$folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
+$downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
+
+ForEach ($day in $dateArr) {
+    $dateStr = $day.ToShortDateString().Replace('/','-')
+    $outPath = "$outputFld\$dateStr-TimeScrobble.htm"
+    $tomorrow = $day.AddDays(1)
+
+    $folderObj = $folderFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)}
+    $downloadObj = $downloadFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)}
+    $inboxObj = $inboxArr | Where-Object {$_.ReceivedTime -ge $day -and $_.ReceivedTime -lt $tomorrow}
+    $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow}
+    $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow}
+    
+    If ($personalSlackKey) {
+    # Please note, requires customised version of PSSlack with Group support to function properly @ 17/08
+    $slackUsers = Get-SlackUser -Token $personalSlackKey -Presence
+    $slackObj = @()
+        ForEach ($channel in $slackChannels) {
+            $channelMsgs = Get-SlackChannel -Token $personalSlackKey -Name $channel | Get-SlackHistory -Token $personalSlackKey -After $day -Before $tomorrow
+            $channelMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $channel}
+            $slackObj += $channelMsgs
+        }
+        ForEach ($group in $slackGroups) {
+            $groupMsgs = Get-SlackGroup -Token $personalSlackKey -Name $group | Get-SlackGroupHistory -Token $personalSlackKey -After $day -Before $tomorrow
+            $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'channel' -Value $group}
+            $slackObj += $groupMsgs
+        }
+    }
+    $slackFiles = @()
+    ForEach ($message in $slackObj) {
+        $message.Username = ($slackUsers | Where-Object {$_.ID -eq $message.User} | Select-Object -ExpandProperty Name)
+        If ($message.File) {
+            $slackFiles += $message
+        }
+    }
+    If ($slackFiles.count -ne 0) {
+        $slackFileObj = @()
+        ForEach ($file in $slackFiles) {
+            $SlackFileObj += [PSCustomObject] @{
+                Channel = $file.Channel
+                Timestamp = $file.Timestamp
+                Username = $file.Username
+                Title = $file.File.title
+                Filename = $file.File.name
+                Permalink = $file.File.permalink_public
+            }
+        }
+        $slackObj = $slackObj | Where-Object {$slackFiles -notcontains $_}
+    }
+
+    $sortProp1 = @{Expression='Channel'; Descending=$true}
+    $sortProp2 = @{Expression='Timestamp'; Ascending=$true}
+    $slackObj = $slackObj | Select-Object Channel,Timestamp,Username,Text | Sort-Object $sortProp1, $sortProp2
+}
