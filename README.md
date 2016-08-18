@@ -30,6 +30,8 @@ TimeScrobbler was primarily created to help me handle filling out back-dated tim
 * Improve output report formatting with CSS wizardry
 * Build XAML interface
 * Add additional data sources
+* Comment pass
+
 
 ## Wanna help?
 Either fork/pull directly, or hit me up [@kittiah](https://twitter.com/kittiah) on Twitter if you wanna discuss anything!
