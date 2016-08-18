@@ -137,7 +137,7 @@ $reportHeader = @"
 "@
 
 
-Write-Output "TimeScrobbler v1.0 - kittiah@gmail.com`r`n"
+Write-Output "`r`nTimeScrobbler v1.0 - 2016-08-18 - https://github.com/Kittzus/TimeScrobbler`r`n"
 # Work out path, import Slack module (TEMP: Until the Groups functionality is added to master branch)
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
 
@@ -145,22 +145,93 @@ $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
 Import-ConfigFile -Path $scriptPath\User.conf
 
 # Import PSSlack if a token has been provided
-If ($personalSlackKey -ne '') {
-    Import-Module $scriptPath\PSSlack -Force | Out-Null
+If (!$slackToken) {
+    Write-Output 'No Slack user token found in User.conf file. Enter here, or [Return] to skip'
+    $slackToken = Read-Host 'Slack User Token'
+}
+If ($slackToken) {
+    $modCheck = Get-Module PSSlack
+    If (!$modCheck) {
+        Write-Output 'PSSlack module not found in $PSModulePath folders. Please install this from https://github.com/RamblingCookieMonster/PSSlack to enable Slack scrobbling!'
+        Clear-Variable slackToken
+    }
+    Else{
+        Import-Module PSSlack -Force | Out-Null
+    }
 }
 
 # Create the output folder if it doesn't already exist
 Set-Folder $outputFld
 
-# Work out the days we need to generate reports for
-$startDate = Get-Date -Date $startDay
-$endDate = Get-Date -Date $endDay
-$difference = New-TimeSpan -Start $startdate -End $enddate
-$days = [Math]::Ceiling($difference.TotalDays)+1
-$dateArr = @()
-1..$days | ForEach-Object {
-  $dateArr += $startdate
-  $startdate = $startdate.AddDays(1)
+Write-Output "Please set the date-range you`'d like to TimeScrobble"
+Write-Output "IMPORTANT: Date's must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016"
+Write-Output '[q] Exit'
+
+While ($runFlag -ne 'y') {
+    Clear-Variable validTimeSpan,runFlag -ErrorAction SilentlyContinue
+
+    While (!$validTimeSpan) {
+        Clear-Variable validStart,validEnd -ErrorAction SilentlyContinue
+
+        While (!$validStart) {
+            $startDate = Read-Host 'Start Date'
+            Switch ($startDate) {
+                'q' {
+                    exit
+                }
+                default {
+                    Try {
+                        $validStart = Get-Date $startDate -ErrorAction Stop
+                    }
+                    Catch {
+                        Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                    }
+                }
+            }
+        }
+
+        While (!$validEnd) {
+            $endDate = Read-Host 'End Date'
+            Switch ($endDate) {
+                'q' {
+                    exit
+                }
+                default {
+                    Try {
+                        $validEnd = Get-Date $endDate -ErrorAction Stop
+                    }
+                    Catch {
+                        Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                    }
+                }
+            }
+        }
+
+        $validTimeSpan = New-TimeSpan -Start $validStart -End $validEnd
+        If ($validTimeSpan -like '-*') {
+            Write-Output 'Invalid time period entered. Start Date must be BEFORE the End Date.'
+            Clear-Variable validTimeSpan
+        }
+    }
+
+    # Build our array of dates
+    $days = [Math]::Ceiling($validTimeSpan.TotalDays)+1
+    $dateArr = @()
+    1..$days | ForEach-Object {
+        $dateArr += $validStart
+        $validStart = $validStart.AddDays(1)
+    }
+
+    Write-Output "About to TimeScrobble $($dateArr.Count) days.`r`n"
+    Write-Output "Start Date: $($dateArr[0])"
+    Write-Output "End Date: $($validStart)"
+
+    While(@('y','n') -notcontains $runFlag) {
+        $runFlag = Read-Host "`r`nBegin? [y/n]"
+        If (@('y','n') -notcontains $runFlag) {
+            Write-Output "Invalid Entry!`r`n"
+        }
+    }
 }
 
 $folderArr += [Environment]::GetFolderPath('Desktop')
@@ -171,16 +242,16 @@ $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft
 # Please note, these bits take fucking ages. Go make a sandwich or three.
 Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
 $inboxArr = Get-OutlookInbox
-Write-Output 'Getting Outlook Sent Items - This could be a while...'
+Write-Output 'Getting Outlook Sent Items - Could be a while...'
 $sentArr = Get-OutlookSent
 Write-Output 'Getting Outlook Calendar - Hopefully wont take too long...'
 $calArr = Get-OutlookCalendar
 
-Write-Output 'Getting Local Files'
+Write-Output 'Getting Local Files - Errrr, how many files you got?'
 $folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
 $downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
 
-Write-Output 'Building Reports...'
+Write-Output "`r`nBuilding Reports...`r`n"
 ForEach ($day in $dateArr) {
     $dateStr = $day.ToString('yyyy-MM-dd')
     Write-Output "TimeScrobbling $dateStr..."
@@ -195,17 +266,17 @@ ForEach ($day in $dateArr) {
     $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow} | Select-Object SentOn, To, Subject, Importance
     $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow} | Select-Object Start, Subject, Duration, Location
     
-    If ($personalSlackKey) {
+    If ($slackToken) {
     # Please note, requires customised version of PSSlack with Group support to function properly @ 17/08
-    $slackUsers = Get-SlackUser -Token $personalSlackKey -Presence
+    $slackUsers = Get-SlackUser -Token $slackToken -Presence
     $slackObj = @()
         ForEach ($channel in $slackChannels) {
-            $channelMsgs = Get-SlackChannel -Token $personalSlackKey -Name $channel | Get-SlackHistory -Token $personalSlackKey -After $day -Before $tomorrow
+            $channelMsgs = Get-SlackChannel -Token $slackToken -Name $channel | Get-SlackHistory -Token $slackToken -After $day -Before $tomorrow
             $channelMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $channel}
             $slackObj += $channelMsgs
         }
         ForEach ($group in $slackGroups) {
-            $groupMsgs = Get-SlackGroup -Token $personalSlackKey -Name $group | Get-SlackGroupHistory -Token $personalSlackKey -After $day -Before $tomorrow
+            $groupMsgs = Get-SlackGroup -Token $slackToken -Name $group | Get-SlackGroupHistory -Token $slackToken -After $day -Before $tomorrow
             $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $group}
             $slackObj += $groupMsgs
         }
