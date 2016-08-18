@@ -78,6 +78,38 @@ Function Set-Folder {
 	}
 }
 
+Function Import-ConfigFile {
+    # Quick function to read in simple plaintext config files
+    # Evaluate switch will expand any powershell variables (e.g. $test) in the imported strings before setting the value
+
+    param(
+        $Path,
+        [switch]$Evaluate
+    )
+
+    $importConfig = Get-Content $path | Where-Object {($_ -notlike '#*') -and ($_)}
+    $importConfig | ForEach {
+        $splitVar = $_.Split('=')
+        If ($splitVar[1] -like '*,*') {
+            [array]$value = $splitVar[1].Split(',').Trim()
+            If ($evaluate) {
+                $evals = @()
+                $value | ForEach {
+                    $evals += $ExecutionContext.InvokeCommand.ExpandString("$_")
+                }
+                $value = $evals
+            }
+        }
+        Else {
+            [string]$value = $splitvar[1].Trim()
+            If ($evaluate) {
+                $value = $ExecutionContext.InvokeCommand.ExpandString("$value")
+            }
+        }
+        Set-Variable -Scope Script -Name $splitVar[0].Trim() -Value $value
+    }
+}
+
 $reportHeader = @"
 <style>
   body {
@@ -110,17 +142,7 @@ Write-Output "TimeScrobbler v1.0 - kittiah@gmail.com`r`n"
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
 
 # Read in the User.conf and turn into live variables
-$importConfig = Get-Content $scriptPath\User.conf | Where-Object {($_ -notlike '#*') -and ($_)}
-$importConfig | ForEach {
-    $splitVar = $_.Split('=')
-    If ($splitVar[1] -like '*,*') {
-        [array]$value = $splitVar[1].Trim().Split(',')
-    }
-    Else {
-        [string]$value = $splitvar[1].Trim()
-    }
-    Set-Variable -Scope Script -Name $splitVar[0].Trim() -Value $value
-}
+Import-ConfigFile -Path $scriptPath\User.conf
 
 # Import PSSlack if a token has been provided
 If ($personalSlackKey -ne '') {
