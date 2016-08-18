@@ -111,29 +111,56 @@ Function Import-ConfigFile {
 }
 
 $reportHeader = @"
-<style>
-  body {
-    font-family: "Arial";
-    font-size: 10pt;
-    color: #4C607B;
-    }
-  th, td { 
-    border: 1px solid #e57300;
-    border-collapse: collapse;
-    padding: 5px;
-    }
-  th {
-    font-size: 1.2em;
-    text-align: left;
-    background-color: #003366;
-    color: #ffffff;
-    }
-  td {
-    color: #000000;
-    }
-  .even { background-color: #ffffff; }
-  .odd { background-color: #bfbfbf; }
-</style>
+    <link rel="stylesheet" src="https://necolas.github.io/normalize.css/latest/normalize.css">
+    <style>
+        body {
+            color: #222;
+            font-family: sans-serif;
+            font-size: 14px;
+            margin: 2% 0;
+        }
+        h1 {
+            font-size: 2em;
+            font-weight: normal;
+            padding: 0 2%;
+        }
+        h3 {
+            font-size: 1.25em;
+            font-weight: normal;
+            padding: 0 2%;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        tr:nth-child(even) {
+            background: #EEE;
+        }
+        th {
+            border-bottom: 1px solid #999;
+            font-weight: normal;
+            text-align: left;
+        }
+        td,
+        th {
+            padding: .25em;
+        }
+        td:first-child,
+        th:first-child    {
+            padding-left: 2%;
+        }
+        td:last-child,
+        th:last-child {
+            padding-left: 2%;
+        }
+        span {
+            display: block;
+            font-size: 1.5em;
+            font-weight: normal!important;
+            margin: 0 0 .5%;
+            padding: 0 2%;
+        }
+    </style>
 "@
 
 
