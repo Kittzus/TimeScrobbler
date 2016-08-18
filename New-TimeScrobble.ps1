@@ -163,178 +163,197 @@ If ($slackToken) {
 # Create the output folder if it doesn't already exist
 Set-Folder $outputFld
 
-Write-Output "Please set the date-range you`'d like to TimeScrobble"
-Write-Output "IMPORTANT: Date's must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016"
-Write-Output '[q] Exit'
+While (!$doneFlag) {
+    Clear-Variable moreFlag -ErrorAction SilentlyContinue
+    Write-Output "`r`nPlease set the date-range you`'d like to TimeScrobble"
+    Write-Output "IMPORTANT: Date's must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016"
+    Write-Output '[q] Exit'
 
-While ($runFlag -ne 'y') {
-    Clear-Variable validTimeSpan,runFlag -ErrorAction SilentlyContinue
+    While ($runFlag -ne 'y') {
+        Clear-Variable validTimeSpan,runFlag -ErrorAction SilentlyContinue
 
-    While (!$validTimeSpan) {
-        Clear-Variable validStart,validEnd -ErrorAction SilentlyContinue
+        While (!$validTimeSpan) {
+            Clear-Variable validStart,validEnd -ErrorAction SilentlyContinue
 
-        While (!$validStart) {
-            $startDate = Read-Host 'Start Date'
-            Switch ($startDate) {
-                'q' {
-                    exit
-                }
-                default {
-                    Try {
-                        $validStart = Get-Date $startDate -ErrorAction Stop
+            While (!$validStart) {
+                $startDate = Read-Host 'Start Date'
+                Switch ($startDate) {
+                    'q' {
+                        exit
                     }
-                    Catch {
-                        Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
-                    }
-                }
-            }
-        }
-
-        While (!$validEnd) {
-            $endDate = Read-Host 'End Date'
-            Switch ($endDate) {
-                'q' {
-                    exit
-                }
-                default {
-                    Try {
-                        $validEnd = Get-Date $endDate -ErrorAction Stop
-                    }
-                    Catch {
-                        Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                    default {
+                        Try {
+                            $validStart = Get-Date $startDate -ErrorAction Stop
+                        }
+                        Catch {
+                            Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                        }
                     }
                 }
             }
+
+            While (!$validEnd) {
+                $endDate = Read-Host 'End Date'
+                Switch ($endDate) {
+                    'q' {
+                        exit
+                    }
+                    default {
+                        Try {
+                            $validEnd = Get-Date $endDate -ErrorAction Stop
+                        }
+                        Catch {
+                            Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                        }
+                    }
+                }
+            }
+
+            $validTimeSpan = New-TimeSpan -Start $validStart -End $validEnd
+            If ($validTimeSpan -like '-*') {
+                Write-Output 'Invalid time period entered. Start Date must be BEFORE the End Date.'
+                Clear-Variable validTimeSpan
+            }
         }
 
-        $validTimeSpan = New-TimeSpan -Start $validStart -End $validEnd
-        If ($validTimeSpan -like '-*') {
-            Write-Output 'Invalid time period entered. Start Date must be BEFORE the End Date.'
-            Clear-Variable validTimeSpan
+        # Build our array of dates
+        $days = [Math]::Ceiling($validTimeSpan.TotalDays)+1
+        $dateArr = @()
+        1..$days | ForEach-Object {
+            $dateArr += $validStart
+            $validStart = $validStart.AddDays(1)
+        }
+
+        Write-Output "About to TimeScrobble $($dateArr.Count) days.`r`n"
+        Write-Output "Start Date: $($dateArr[0])"
+        Write-Output "End Date: $($validStart)"
+
+        While(@('y','n') -notcontains $runFlag) {
+            $runFlag = Read-Host "`r`nBegin? [y/n]"
+            If (@('y','n') -notcontains $runFlag) {
+                Write-Output "Invalid Entry!`r`n"
+            }
         }
     }
 
-    # Build our array of dates
-    $days = [Math]::Ceiling($validTimeSpan.TotalDays)+1
-    $dateArr = @()
-    1..$days | ForEach-Object {
-        $dateArr += $validStart
-        $validStart = $validStart.AddDays(1)
+    $folderArr += [Environment]::GetFolderPath('Desktop')
+    $folderArr += [Environment]::GetFolderPath('Desktop')
+    $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
+
+    # Build out the data sources for the reports if they don't yet exist
+    If (!$inboxArr) {
+        Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
+        $inboxArr = Get-OutlookInbox
+    }
+    If (!$sentArr) {
+        Write-Output 'Getting Outlook Sent Items - Could be a while...'
+        $sentArr = Get-OutlookSent
+    }
+    If (!$calArr) {
+        Write-Output 'Getting Outlook Calendar - Hopefully wont take too long...'
+        $calArr = Get-OutlookCalendar
+    }
+    If (!$folderFiles) {
+        Write-Output 'Getting Local Files - Errrr, how many files you got?'
+        $folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
+        $downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
     }
 
-    Write-Output "About to TimeScrobble $($dateArr.Count) days.`r`n"
-    Write-Output "Start Date: $($dateArr[0])"
-    Write-Output "End Date: $($validStart)"
+    Write-Output "`r`nBuilding Reports...`r`n"
+    ForEach ($day in $dateArr) {
+        $dateStr = $day.ToString('yyyy-MM-dd')
+        Write-Output "TimeScrobbling $dateStr..."
+        $outPath = "$outputFld\$dateStr-TimeScrobble.htm"
+        $tomorrow = $day.AddDays(1)
 
-    While(@('y','n') -notcontains $runFlag) {
-        $runFlag = Read-Host "`r`nBegin? [y/n]"
-        If (@('y','n') -notcontains $runFlag) {
-            Write-Output "Invalid Entry!`r`n"
-        }
-    }
-}
-
-$folderArr += [Environment]::GetFolderPath('Desktop')
-$folderArr += [Environment]::GetFolderPath('Desktop')
-$downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
-
-# Build out the data sources for the reports
-# Please note, these bits take fucking ages. Go make a sandwich or three.
-Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
-$inboxArr = Get-OutlookInbox
-Write-Output 'Getting Outlook Sent Items - Could be a while...'
-$sentArr = Get-OutlookSent
-Write-Output 'Getting Outlook Calendar - Hopefully wont take too long...'
-$calArr = Get-OutlookCalendar
-
-Write-Output 'Getting Local Files - Errrr, how many files you got?'
-$folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
-$downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
-
-Write-Output "`r`nBuilding Reports...`r`n"
-ForEach ($day in $dateArr) {
-    $dateStr = $day.ToString('yyyy-MM-dd')
-    Write-Output "TimeScrobbling $dateStr..."
-    $outPath = "$outputFld\$dateStr-TimeScrobble.htm"
-    $tomorrow = $day.AddDays(1)
-
-    $fileSortProp1 = @{Expression='DirectoryName';Descending = $true}
-    $fileSortProp2 = @{Expression='LastWriteTime';Ascending = $true}
-    $folderObj = $folderFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, DirectoryName, CreationTime, LastWriteTime | Sort-Object $fileSortProp1,$fileSortProp2
-    $downloadObj = $downloadFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, CreationTime, LastWriteTime | Sort-Object lastWriteTime
-    $inboxObj = $inboxArr | Where-Object {$_.ReceivedTime -ge $day -and $_.ReceivedTime -lt $tomorrow} | Select-Object ReceivedTime, SenderName, Subject, Importance
-    $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow} | Select-Object SentOn, To, Subject, Importance
-    $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow} | Select-Object Start, Subject, Duration, Location
+        $fileSortProp1 = @{Expression='DirectoryName';Descending = $true}
+        $fileSortProp2 = @{Expression='LastWriteTime';Ascending = $true}
+        $folderObj = $folderFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, DirectoryName, CreationTime, LastWriteTime | Sort-Object $fileSortProp1,$fileSortProp2
+        $downloadObj = $downloadFiles | Where-Object {($_.CreationTime -ge $day -and $_.CreationTime -lt $tomorrow) -or ($_.LastWriteTime -ge $day -and $_.LastWriteTime -lt $tomorrow)} | Select-Object Name, CreationTime, LastWriteTime | Sort-Object lastWriteTime
+        $inboxObj = $inboxArr | Where-Object {$_.ReceivedTime -ge $day -and $_.ReceivedTime -lt $tomorrow} | Select-Object ReceivedTime, SenderName, Subject, Importance
+        $sentObj = $sentArr | Where-Object {$_.SentOn -ge $day -and $_.SentOn -lt $tomorrow} | Select-Object SentOn, To, Subject, Importance
+        $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow} | Select-Object Start, Subject, Duration, Location
     
-    If ($slackToken) {
-    # Please note, requires customised version of PSSlack with Group support to function properly @ 17/08
-    $slackUsers = Get-SlackUser -Token $slackToken -Presence
-    $slackObj = @()
-        ForEach ($channel in $slackChannels) {
-            $channelMsgs = Get-SlackChannel -Token $slackToken -Name $channel | Get-SlackHistory -Token $slackToken -After $day -Before $tomorrow
-            $channelMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $channel}
-            $slackObj += $channelMsgs
-        }
-        ForEach ($group in $slackGroups) {
-            $groupMsgs = Get-SlackGroup -Token $slackToken -Name $group | Get-SlackGroupHistory -Token $slackToken -After $day -Before $tomorrow
-            $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $group}
-            $slackObj += $groupMsgs
-        }
-
-        $slackFiles = @()
-        ForEach ($message in $slackObj) {
-            $message.Username = ($slackUsers | Where-Object {$_.ID -eq $message.User} | Select-Object -ExpandProperty Name)
-            If ($message.File) {
-                $slackFiles += $message
+        If ($slackToken) {
+            $slackUsers = Get-SlackUser -Token $slackToken -Presence
+            $slackObj = @()
+            ForEach ($channel in $slackChannels) {
+                $channelMsgs = Get-SlackChannel -Token $slackToken -Name $channel | Get-SlackHistory -Token $slackToken -After $day -Before $tomorrow
+                $channelMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $channel}
+                $slackObj += $channelMsgs
             }
-        }
-        If ($slackFiles.count -ne 0) {
-            $slackFileObj = @()
-            ForEach ($file in $slackFiles) {
-                $SlackFileObj += [PSCustomObject] @{
-                    Channel = $file.Channel
-                    Timestamp = $file.Timestamp
-                    Username = $file.Username
-                    Title = $file.File.title
-                    Filename = $file.File.name
-                    Permalink = $file.File.permalink
+            ForEach ($group in $slackGroups) {
+                $groupMsgs = Get-SlackGroup -Token $slackToken -Name $group | Get-SlackGroupHistory -Token $slackToken -After $day -Before $tomorrow
+                $groupMsgs | ForEach {$_ | Add-Member -MemberType NoteProperty -Name 'Channel' -Value $group}
+                $slackObj += $groupMsgs
+            }
+
+            $slackFiles = @()
+            ForEach ($message in $slackObj) {
+                $message.Username = ($slackUsers | Where-Object {$_.ID -eq $message.User} | Select-Object -ExpandProperty Name)
+                If ($message.File) {
+                    $slackFiles += $message
                 }
             }
-            $slackObj = $slackObj | Where-Object {$slackFiles -notcontains $_}
+            If ($slackFiles.count -ne 0) {
+                $slackFileObj = @()
+                ForEach ($file in $slackFiles) {
+                    $SlackFileObj += [PSCustomObject] @{
+                        Channel = $file.Channel
+                        Timestamp = $file.Timestamp
+                        Username = $file.Username
+                        Title = $file.File.title
+                        Filename = $file.File.name
+                        Permalink = $file.File.permalink
+                    }
+                }
+                $slackObj = $slackObj | Where-Object {$slackFiles -notcontains $_}
+            }
+
+            $slackSortProp1 = @{Expression='Channel'; Descending=$true}
+            $slackSortProp2 = @{Expression='Timestamp'; Ascending=$true}
+            $slackObj = $slackObj | Select-Object Channel,Timestamp,Username,Text | Sort-Object $slackSortProp1, $slackSortProp2
         }
 
-        $slackSortProp1 = @{Expression='Channel'; Descending=$true}
-        $slackSortProp2 = @{Expression='Timestamp'; Ascending=$true}
-        $slackObj = $slackObj | Select-Object Channel,Timestamp,Username,Text | Sort-Object $slackSortProp1, $slackSortProp2
+        $outBody = @()
+        If ($folderObj) {
+            $outBody += New-HTMLTable -inputObj $folderObj -headerText 'Personal Files Created/Modified'
+        }
+        If ($downloadObj) {
+            $outBody += New-HTMLTable -inputObj $downloadObj -headerText 'Downloaded Files'
+        }
+        If ($inboxObj) {
+            $outBody += New-HTMLTable -inputObj $inboxObj -headerText 'Received Emails'
+        }
+        If ($sentObj) {
+            $outBody += New-HTMLTable -inputObj $sentObj -headerText 'Sent Emails'
+        }
+        If ($calObj) {
+            $outBody += New-HTMLTable -inputObj $calObj -headerText 'Calendar Entries'
+        }
+        If ($slackObj) {
+            $outBody += New-HTMLTable -inputObj $slackObj -headerText 'Slack Messages'
+        }
+        If ($slackFileObj) {
+            $outBody += New-HTMLTable -inputObj $slackFileObj -headerText 'Slack Files'
+        }
+
+        [array]$outBody = "<h1>TimeScrobbler Run for $dateStr</h1>" + $outBody + "<br><h3>Report generated at $(Get-Date)</h3>"
+        $outHTM = ConvertTo-Html -Head $reportHeader -Body $outBody
+        $outHTM | Out-File $outPath -Force
     }
 
-    $outBody = @()
-    If ($folderObj) {
-        $outBody += New-HTMLTable -inputObj $folderObj -headerText 'Personal Files Created/Modified'
+    Write-Output "`r`nTimeScrobble complete. Reports available at $outputFld`r`n."
+    
+    While(!$doneFlag -and !$moreFlag) {
+        $doneTest = Read-Host 'TimeScrobble another range? [y/n]'
+        switch ($doneTest) {
+            'n' {$doneFlag = $true}
+            'y' {$moreFlag = $true}
+            default {Write-Output "Invalid Entry!`r`n"}
+        }
     }
-    If ($downloadObj) {
-        $outBody += New-HTMLTable -inputObj $downloadObj -headerText 'Downloaded Files'
-    }
-    If ($inboxObj) {
-        $outBody += New-HTMLTable -inputObj $inboxObj -headerText 'Received Emails'
-    }
-    If ($sentObj) {
-        $outBody += New-HTMLTable -inputObj $sentObj -headerText 'Sent Emails'
-    }
-    If ($calObj) {
-        $outBody += New-HTMLTable -inputObj $calObj -headerText 'Calendar Entries'
-    }
-    If ($slackObj) {
-        $outBody += New-HTMLTable -inputObj $slackObj -headerText 'Slack Messages'
-    }
-    If ($slackFileObj) {
-        $outBody += New-HTMLTable -inputObj $slackFileObj -headerText 'Slack Files'
-    }
-
-    [array]$outBody = "<h1>TimeScrobbler Run for $dateStr</h1>" + $outBody + "<br><h3>Report generated at $(Get-Date)</h3>"
-    $outHTM = ConvertTo-Html -Head $reportHeader -Body $outBody
-    $outHTM | Out-File $outPath -Force
 }
 
-Write-Output "`r`nTimeScrobble complete. Reports available at $outputFld`r`nPress any key to exit."
+Write-Output "`r`nPress any key to exit.."
 $x = $host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
