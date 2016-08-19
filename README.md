@@ -3,7 +3,11 @@
 ## What?
 TimeScrobbler is a simple PowerShell tool designed to help answer that age-old question of "What the heck was I actually doing on that arbitrary day three weeks ago?"
 
-When provided with a date-range, Timescrobbler will pull information from common & user specified folders, Outlook and Slack together into an HTML report for each day within that range, summarising exactly who you spoke to, what was said, what meetings you attended, and what files you worked on or downloaded that day.
+When provided with a date-range, Timescrobbler will pull information from common & user specified folders, Outlook and Slack together into a simple HTML report for each day within that range, summarising exactly who you spoke to, what was said, what meetings you attended, and what files you worked on or downloaded that day.
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;![TimeScrobble Example](/Media/TimeScrobbleExample.png)
+
+A full example output report is available in the Media folder of the downloaded repo.
 
 
 ## Why?
