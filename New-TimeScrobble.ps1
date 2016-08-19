@@ -278,6 +278,7 @@ While (!$doneFlag) {
         $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow} | Select-Object Start, Subject, Duration, Location
     
         If ($slackToken) {
+            Clear-Variable 
             $slackUsers = Get-SlackUser -Token $slackToken -Presence
             $slackObj = @()
             ForEach ($channel in $slackChannels) {
@@ -292,6 +293,7 @@ While (!$doneFlag) {
             }
 
             $slackFiles = @()
+            $slackFileObj = @()
             ForEach ($message in $slackObj) {
                 $message.Username = ($slackUsers | Where-Object {$_.ID -eq $message.User} | Select-Object -ExpandProperty Name)
                 If ($message.File) {
@@ -299,7 +301,6 @@ While (!$doneFlag) {
                 }
             }
             If ($slackFiles.count -ne 0) {
-                $slackFileObj = @()
                 ForEach ($file in $slackFiles) {
                     $SlackFileObj += [PSCustomObject] @{
                         Channel = $file.Channel
