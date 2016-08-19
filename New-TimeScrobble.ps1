@@ -167,13 +167,13 @@ If ($slackToken) {
 Set-Folder $outputFld
 
 While (!$doneFlag) {
-    Clear-Variable moreFlag -ErrorAction SilentlyContinue
+    Clear-Variable moreFlag,runFlag -ErrorAction SilentlyContinue
     Write-Output "`r`nPlease set the date-range you`'d like to TimeScrobble"
-    Write-Output 'IMPORTANT: Dates must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016'
+    Write-Output "IMPORTANT: Date's must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016"
     Write-Output "[q] to Exit`r`n"
 
     While ($runFlag -ne 'y') {
-        Clear-Variable validTimeSpan,runFlag -ErrorAction SilentlyContinue
+        Clear-Variable validTimeSpan -ErrorAction SilentlyContinue
 
         While (!$validTimeSpan) {
             Clear-Variable validStart,validEnd -ErrorAction SilentlyContinue
@@ -243,7 +243,6 @@ While (!$doneFlag) {
     $folderArr += [Environment]::GetFolderPath('Desktop')
     $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
 
-    Write-Output "`r`n"
     # Build out the data sources for the reports if they don't yet exist
     If (!$inboxArr) {
         Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
@@ -258,7 +257,7 @@ While (!$doneFlag) {
         $calArr = Get-OutlookCalendar
     }
     If (!$folderFiles) {
-        Write-Output 'Getting Local Files - Errrr, how many files you got?'
+        Write-Output 'Getting Local Files - So how many files you got?'
         $folderFiles = Get-ChildItem -Path $folderArr -Recurse -File
         $downloadFiles = Get-ChildItem -Path $downloadPath -Recurse -File
     }
@@ -347,7 +346,7 @@ While (!$doneFlag) {
         $outHTM | Out-File $outPath -Force
     }
 
-    Write-Output "`r`nTimeScrobble complete. Reports available at $outputFld`r`n."
+    Write-Output "`r`nTimeScrobble complete. Reports available at $outputFld`r`n"
     
     While(!$doneFlag -and !$moreFlag) {
         $doneTest = Read-Host 'TimeScrobble another range? [y/n]'
