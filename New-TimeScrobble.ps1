@@ -105,11 +105,17 @@ $reportHeader = @"
             width: 100%;
         }
         tr:nth-child(even) {
-            background: #EEE;
+			background: #ADD8E6;
+		}
+        tr:nth-child(odd) {
+            background: #E0FFFF;	
         }
+        tr:first-child {
+			background: #EEE;
+		}
         th {
             border-bottom: 1px solid #999;
-            font-weight: normal;
+            font-weight: bold;
             text-align: left;
         }
         td,
@@ -135,7 +141,7 @@ $reportHeader = @"
 
 
 Write-Output "`r`nTimeScrobbler v1.0 - 2016-08-18 - https://github.com/Kittzus/TimeScrobbler`r`n"
-# Work out path, import Slack module (TEMP: Until the Groups functionality is added to master branch)
+# Work out path
 $scriptPath = Split-Path $MyInvocation.MyCommand.Path -Parent
 
 # Read in the User.conf and turn into live variables
@@ -147,9 +153,9 @@ If (!$slackToken) {
     $slackToken = Read-Host 'Slack User Token'
 }
 If ($slackToken) {
-    $modCheck = Get-Module PSSlack
+    $modCheck = Get-Module -ListAvailable PSSlack
     If (!$modCheck) {
-        Write-Output 'PSSlack module not found in $PSModulePath folders. Please install this from https://github.com/RamblingCookieMonster/PSSlack to enable Slack scrobbling!'
+        Write-Error 'PSSlack module not found in $PSModulePath folders. Please install this from https://github.com/RamblingCookieMonster/PSSlack and relaunch TimeScrobbler to enable Slack support!'
         Clear-Variable slackToken
     }
     Else{
@@ -163,8 +169,8 @@ Set-Folder $outputFld
 While (!$doneFlag) {
     Clear-Variable moreFlag -ErrorAction SilentlyContinue
     Write-Output "`r`nPlease set the date-range you`'d like to TimeScrobble"
-    Write-Output "IMPORTANT: Date's must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016"
-    Write-Output '[q] Exit'
+    Write-Output 'IMPORTANT: Dates must be in the unambiguous sortable date format yyyy-MM-dd e.g. 2016-08-13 for 13th August 2016'
+    Write-Output "[q] to Exit`r`n"
 
     While ($runFlag -ne 'y') {
         Clear-Variable validTimeSpan,runFlag -ErrorAction SilentlyContinue
@@ -183,7 +189,7 @@ While (!$doneFlag) {
                             $validStart = Get-Date $startDate -ErrorAction Stop
                         }
                         Catch {
-                            Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                            Write-Error "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
                         }
                     }
                 }
@@ -200,7 +206,7 @@ While (!$doneFlag) {
                             $validEnd = Get-Date $endDate -ErrorAction Stop
                         }
                         Catch {
-                            Write-Output "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
+                            Write-Error "Invalid date entered. Format must be yyyy-MM-dd.`r`n"
                         }
                     }
                 }
@@ -208,7 +214,7 @@ While (!$doneFlag) {
 
             $validTimeSpan = New-TimeSpan -Start $validStart -End $validEnd
             If ($validTimeSpan -like '-*') {
-                Write-Output 'Invalid time period entered. Start Date must be BEFORE the End Date.'
+                Write-Error "Invalid time period entered. Start Date must be BEFORE the End Date.`r`n"
                 Clear-Variable validTimeSpan
             }
         }
@@ -221,14 +227,14 @@ While (!$doneFlag) {
             $validStart = $validStart.AddDays(1)
         }
 
-        Write-Output "About to TimeScrobble $($dateArr.Count) days.`r`n"
+        Write-Output "`r`nAbout to TimeScrobble $($dateArr.Count) days.`r`n"
         Write-Output "Start Date: $($dateArr[0])"
         Write-Output "End Date: $($validStart)"
 
         While(@('y','n') -notcontains $runFlag) {
             $runFlag = Read-Host "`r`nBegin? [y/n]"
             If (@('y','n') -notcontains $runFlag) {
-                Write-Output "Invalid Entry!`r`n"
+                Write-Error "Invalid Entry!`r`n"
             }
         }
     }
@@ -237,6 +243,7 @@ While (!$doneFlag) {
     $folderArr += [Environment]::GetFolderPath('Desktop')
     $downloadPath = Get-ItemProperty 'Registry::HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders' | Select-Object -ExpandProperty '{374DE290-123F-4565-9164-39C4925E467B}'
 
+    Write-Output "`r`n"
     # Build out the data sources for the reports if they don't yet exist
     If (!$inboxArr) {
         Write-Output 'Getting Outlook Inbox - This may take some time... No, seriously. Make a sandwich.'
