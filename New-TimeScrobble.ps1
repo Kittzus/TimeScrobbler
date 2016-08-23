@@ -278,7 +278,6 @@ While (!$doneFlag) {
         $calObj = $calArr | Where-Object {$_.Start -ge $day -and $_.Start -lt $tomorrow} | Select-Object Start, Subject, Duration, Location
     
         If ($slackToken) {
-            Clear-Variable 
             $slackUsers = Get-SlackUser -Token $slackToken -Presence
             $slackObj = @()
             ForEach ($channel in $slackChannels) {
